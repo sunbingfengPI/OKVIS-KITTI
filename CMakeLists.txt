@@ -24,7 +24,9 @@ catkin_package(
 )
 
 # we really want to use Release here
-set(CMAKE_BUILD_TYPE Release)
+SET(CMAKE_BUILD_TYPE "Debug")  
+SET(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -O0 -Wall -g -ggdb")
+# SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 
 message(STATUS "Building with ${CMAKE_BUILD_TYPE}")
 

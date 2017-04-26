@@ -65,9 +65,15 @@
 #include "rosbag/chunked_file.h"
 #include "rosbag/view.h"
 
+#include <sensor_msgs/Imu.h>
+
+#include <boost/foreach.hpp>
+#define foreach BOOST_FOREACH
+
 
 // this is just a workbench. most of the stuff here will go into the Frontend class.
 int main(int argc, char **argv) {
+
 
   ros::init(argc, argv, "okvis_node_synchronous");
 
@@ -127,11 +133,11 @@ int main(int argc, char **argv) {
     num << i;
     okvis_estimator.setTracksCsvFile(i, path + "/cam" + num.str() + "_tracks.csv");
   }
-
+ 
   // open the bag
   rosbag::Bag bag(argv[2], rosbag::bagmode::Read);
   // views on topics. the slash is needs to be correct, it's ridiculous...
-  std::string imu_topic("/imu0");
+  std::string imu_topic("/kitti/oxts/imu");
   rosbag::View view_imu(
       bag,
       rosbag::TopicQuery(imu_topic));
@@ -141,13 +147,21 @@ int main(int argc, char **argv) {
   }
   rosbag::View::iterator view_imu_iterator = view_imu.begin();
   LOG(INFO) << "No. IMU messages: " << view_imu.size();
+  
+  foreach(rosbag::MessageInstance const m, view_imu)
+  {
+      sensor_msgs::Imu::ConstPtr imu_msg = m.instantiate<sensor_msgs::Imu>();
+      LOG(INFO) << "av:" << imu_msg->linear_acceleration;
+}
 
   std::vector<std::shared_ptr<rosbag::View> > view_cams_ptr;
   std::vector<rosbag::View::iterator> view_cam_iterators;
   std::vector<okvis::Time> times;
   okvis::Time latest(0);
+  std::string camStr;
   for(size_t i=0; i<numCameras;++i) {
-    std::string camera_topic("/cam"+std::to_string(i)+"/image_raw");
+	camStr = (i == 0)?(std::string("/kitti/camera_gray_left")):(std::string("/kitti/camera_gray_right"));
+    std::string camera_topic(camStr+"/image_raw");
     std::shared_ptr<rosbag::View> view_ptr(
         new rosbag::View(
             bag,
@@ -206,6 +220,7 @@ int main(int argc, char **argv) {
       sensor_msgs::ImageConstPtr msg1 = view_cam_iterators[i]
           ->instantiate<sensor_msgs::Image>();
       cv::Mat filtered(msg1->height, msg1->width, CV_8UC1);
+      // LOG(INFO) << "cam:" << i << " sec:" << msg1->header.stamp.sec << " nsec:" << msg1->header.stamp.nsec;
       memcpy(filtered.data, &msg1->data[0], msg1->height * msg1->width);
       t = okvis::Time(msg1->header.stamp.sec, msg1->header.stamp.nsec);
       if (start == okvis::Time(0.0)) {
@@ -224,7 +239,9 @@ int main(int argc, char **argv) {
                             msg->linear_acceleration.z);
 
         t_imu = okvis::Time(msg->header.stamp.sec, msg->header.stamp.nsec);
-
+        
+        // LOG(INFO) << "imu:"<< " sec:" << msg->header.stamp.sec << " nsec:" << msg->header.stamp.nsec;
+        
         // add the IMU measurement for (blocking) processing
         if (t_imu - start > deltaT)
           okvis_estimator.addImuMeasurement(t_imu, acc, gyr);
